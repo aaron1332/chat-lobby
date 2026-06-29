@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title>Chat Lobby</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 40px auto; padding: 0 20px; }
+        #login-section, #chat-section { display: none; }
+        #chat-box { height: 350px; border: 1px solid #ccc; overflow-y: auto; padding: 10px; margin-bottom: 10px; border-radius: 5px; }
+        .system-msg { color: gray; font-style: italic; }
+        .user-msg { color: #333; }
+        input, button { padding: 8px; margin: 4px 0; }
+        #message-input { width: 75%; }
+    </style>
+</head>
+<body>
+
+<!-- Form Login -->
+<div id="login-section">
+    <h2>Masuk ke Lobby</h2>
+    <input type="text" id="username-input" placeholder="Username" /><br>
+    <button onclick="login()">Login</button>
+    <p id="login-error" style="color:red;"></p>
+</div>
+
+<!-- Lobby Chat -->
+<div id="chat-section">
+    <h2>Lobby Chat</h2>
+    <div id="chat-box"></div>
+    <input type="text" id="message-input" placeholder="Tulis pesan..." onkeydown="if(event.key==='Enter') sendMsg()" />
+    <button onclick="sendMsg()">Kirim</button>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+    let socket;
+    document.getElementById('login-section').style.display = 'block';
+
+    async function login() {
+        const username = document.getElementById('username-input').value.trim();
+        if (!username) return;
+
+        const res = await fetch('/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username })
+        });
+
+        const data = await res.json();
+        if (data.token) {
+            connectSocket(data.token);
+        } else {
+            document.getElementById('login-error').textContent = 'Login gagal';
+        }
+    }
+
+    function connectSocket(token) {
+        socket = io({ auth: { token } });
+
+        socket.on('connect', () => {
+            document.getElementById('login-section').style.display = 'none';
+            document.getElementById('chat-section').style.display = 'block';
+        });
+
+        socket.on('lobby-message', (data) => {
+            const box = document.getElementById('chat-box');
+            const div = document.createElement('div');
+            div.className = data.user === 'System' ? 'system-msg' : 'user-msg';
+            div.textContent = data.user === 'System' ? data.text : `${data.user}: ${data.text}`;
+            box.appendChild(div);
+            box.scrollTop = box.scrollHeight;
+        });
+
+        socket.on('connect_error', (err) => {
+            document.getElementById('login-error').textContent = err.message;
+        });
+    }
+
+    function sendMsg() {
+        const input = document.getElementById('message-input');
+        const text = input.value.trim();
+        if (text && socket) {
+            socket.emit('send-message', text);
+            input.value = '';
+        }
+    }
+</script>
+
+</body>
+</html>
